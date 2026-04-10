@@ -1,0 +1,2954 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>舉手淘汰遊戲</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #000;
+        font-family: "Microsoft JhengHei", Arial, sans-serif;
+        overflow: hidden;
+        height: 100vh;
+      }
+
+      #wrap {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+      }
+      canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* ---- Panels ---- */
+      .panel {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        z-index: 20;
+      }
+      #idle-panel {
+        background: rgba(0, 0, 0, 0.88);
+      }
+      #winner-panel {
+        background: rgba(0, 0, 0, 0.88);
+        display: none;
+      }
+      #result-panel {
+        background: rgba(0, 0, 0, 0.72);
+        display: none;
+        pointer-events: none;
+      }
+
+      /* ---- Typography ---- */
+      h1 {
+        font-size: 52px;
+        color: #ffd700;
+      }
+      h2 {
+        font-size: 40px;
+      }
+      .sub {
+        font-size: 18px;
+        color: #aaa;
+        text-align: center;
+        max-width: 460px;
+        line-height: 1.6;
+      }
+
+      /* ---- Command HUD ---- */
+      #command-hud {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.72);
+        border: 2px solid #ffd700;
+        border-radius: 12px;
+        padding: 10px 36px;
+        font-size: 40px;
+        font-weight: bold;
+        color: #ffd700;
+        display: none;
+        z-index: 10;
+        white-space: nowrap;
+      }
+      #round-badge {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid #555;
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 22px;
+        font-weight: bold;
+        color: #fff;
+        display: none;
+        z-index: 25;
+      }
+
+      /* ---- Timer ---- */
+      #timer-wrap {
+        position: absolute;
+        bottom: 60px;
+        left: 20px;
+        right: 20px;
+        display: none;
+        flex-direction: column;
+        gap: 4px;
+        z-index: 10;
+      }
+      #timer-num {
+        font-size: 26px;
+        font-weight: bold;
+        color: #fff;
+        text-align: right;
+      }
+      #timer-track {
+        height: 18px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 9px;
+        overflow: hidden;
+      }
+      #timer-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ff4444, #ffd700, #00ff88);
+        border-radius: 9px;
+        transition: width 0.05s linear;
+      }
+
+      /* ---- Calibration hint card ---- */
+      #cal-hint {
+        position: absolute;
+        bottom: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.82);
+        border: 2px solid #ffd700;
+        border-radius: 14px;
+        padding: 16px 32px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        z-index: 12;
+        pointer-events: none;
+        min-width: 320px;
+        text-align: center;
+      }
+      #cal-hint .cal-title {
+        font-size: 17px;
+        color: #aaa;
+      }
+      #cal-hint .cal-examples {
+        display: flex;
+        gap: 16px;
+      }
+      #cal-hint .cal-chip {
+        background: rgba(255, 215, 0, 0.15);
+        border: 1px solid #ffd700;
+        border-radius: 8px;
+        padding: 8px 18px;
+        font-size: 26px;
+        font-weight: bold;
+        color: #ffd700;
+      }
+      #cal-hint .cal-skip {
+        font-size: 14px;
+        color: #666;
+      }
+
+      /* ---- Status msg ---- */
+      #status {
+        position: absolute;
+        top: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.65);
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-size: 22px;
+        color: #fff;
+        display: none;
+        z-index: 10;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+
+      /* ---- Mic indicator ---- */
+      #mic {
+        position: absolute;
+        width: 90px;
+        height: 90px;
+        background: rgba(255, 30, 30, 0.85);
+        border-radius: 50%;
+        font-size: 40px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 30;
+        pointer-events: none;
+        animation: pulse 0.7s infinite alternate;
+      }
+      @keyframes pulse {
+        from {
+          transform: translate(-50%, -150%) scale(1);
+        }
+        to {
+          transform: translate(-50%, -150%) scale(1.25);
+        }
+      }
+
+      /* ---- Name input ---- */
+      #name-input-panel {
+        position: absolute;
+        bottom: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        align-items: center;
+        gap: 8px;
+        z-index: 16;
+        background: rgba(0, 0, 0, 0.88);
+        border: 2px solid #ffd700;
+        border-radius: 12px;
+        padding: 10px 18px;
+      }
+      #name-input {
+        width: 220px;
+        padding: 10px 14px;
+        border: 1px solid #555;
+        border-radius: 8px;
+        background: #222;
+        color: #fff;
+        font-size: 20px;
+        font-family: inherit;
+        outline: none;
+      }
+      #name-input:focus {
+        border-color: #ffd700;
+        box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+      }
+      #btn-name-submit {
+        background: #ffd700;
+        color: #111;
+        font-size: 18px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        font-family: inherit;
+        white-space: nowrap;
+      }
+
+      /* ---- Controls ---- */
+      #controls {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
+        z-index: 15;
+      }
+      #btn-manual-input {
+        background: #888;
+        color: #fff;
+        display: none;
+        font-size: 16px;
+        padding: 8px 20px;
+      }
+      #btn-pause {
+        background: #ff9800;
+        color: #fff;
+        display: none;
+      }
+      #pause-panel {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        z-index: 40;
+      }
+      #tutorial-panel {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.92);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 40px 20px;
+        gap: 16px;
+        z-index: 45;
+        overflow: auto;
+      }
+      .tutorial-step {
+        width: 580px;
+        max-width: 90vw;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid #555;
+        border-radius: 10px;
+        padding: 16px 20px;
+        color: #eee;
+        font-size: 16px;
+        line-height: 1.7;
+      }
+      .tutorial-step strong {
+        color: #ffd700;
+      }
+      button {
+        padding: 10px 28px;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      #btn-start {
+        background: #00ff88;
+        color: #111;
+      }
+      #btn-start:disabled {
+        background: #444;
+        color: #777;
+        cursor: default;
+      }
+      #btn-reset {
+        background: #ff4444;
+        color: #fff;
+        display: none;
+      }
+      #loading-panel {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.92);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        z-index: 50;
+      }
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid #333;
+        border-top-color: #ffd700;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .loading-text {
+        font-size: 20px;
+        color: #ffd700;
+        font-weight: bold;
+      }
+      .loading-sub {
+        font-size: 14px;
+        color: #aaa;
+      }
+      #btn-settings {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        z-index: 26;
+        background: rgba(0, 0, 0, 0.72);
+        color: #ffd700;
+        border: 1px solid #ffd700;
+        border-radius: 10px;
+        padding: 8px 14px;
+        font-size: 15px;
+        display: none;
+      }
+      #settings-panel {
+        position: absolute;
+        top: 60px;
+        right: 20px;
+        width: 640px;
+        max-width: calc(100vw - 24px);
+        max-height: calc(100vh - 90px);
+        overflow: auto;
+        z-index: 28;
+        background: rgba(0, 0, 0, 0.92);
+        border: 1px solid #555;
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: none;
+      }
+      @media (max-width: 768px) {
+        #settings-panel {
+          top: 10px;
+          right: 10px;
+          left: 10px;
+          max-height: calc(100vh - 30px);
+          width: auto;
+        }
+      }
+      .settings-title {
+        color: #ffd700;
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+      .settings-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .settings-row label {
+        min-width: 100px;
+        color: #ddd;
+        font-size: 14px;
+      }
+      .settings-row input[type="range"] {
+        flex: 1;
+      }
+      .settings-value {
+        width: 48px;
+        color: #00ff88;
+        font-size: 14px;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+
+      <!-- IDLE -->
+      <div id="idle-panel" class="panel">
+        <h1>🙋 舉手淘汰遊戲</h1>
+        <p class="sub">
+          多人同框，逐一舉手說名字完成報名<br />接受語音指令，不符合者遭淘汰<br />最後存活者獲勝！
+        </p>
+
+        <div style="display: flex; gap: 12px">
+          <button
+            id="btn-enter"
+            style="
+              background: #ffd700;
+              color: #111;
+              font-size: 22px;
+              padding: 14px 44px;
+            "
+          >
+            進入遊戲
+          </button>
+          <button
+            id="btn-tutorial"
+            style="
+              background: #555;
+              color: #fff;
+              font-size: 18px;
+              padding: 12px 28px;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+            "
+          >
+            📖 教學
+          </button>
+        </div>
+      </div>
+
+      <!-- WINNER -->
+      <div id="winner-panel" class="panel">
+        <p style="font-size: 28px; color: #aaa">🏆 最終勝利者</p>
+        <h1 id="winner-name" style="font-size: 72px; color: #ffd700"></h1>
+        <div
+          id="winner-rounds"
+          style="
+            min-width: 360px;
+            max-width: 80vw;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid #555;
+            border-radius: 10px;
+            padding: 14px 18px;
+            color: #eee;
+            font-size: 18px;
+            line-height: 1.8;
+            text-align: left;
+            white-space: pre-line;
+          "
+        ></div>
+        <button
+          id="btn-again"
+          style="
+            background: #ffd700;
+            color: #111;
+            font-size: 20px;
+            padding: 12px 36px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+          "
+        >
+          再玩一次
+        </button>
+      </div>
+
+      <!-- ROUND RESULT -->
+      <div id="result-panel" class="panel">
+        <h2 id="result-title" style="color: #ff4444">❌ 本回合淘汰</h2>
+        <div
+          id="result-names"
+          style="
+            font-size: 30px;
+            color: #fff;
+            text-align: center;
+            line-height: 1.5;
+          "
+        ></div>
+        <div id="result-remain" style="font-size: 22px; color: #00ff88"></div>
+      </div>
+
+      <!-- Calibration hint card -->
+      <div id="cal-hint">
+        <div class="cal-title">請舉起道具，然後說出：</div>
+        <div class="cal-examples" id="cal-examples"></div>
+        <div class="cal-skip">請依序輸入左手與右手代名詞（皆必填）</div>
+      </div>
+
+      <!-- Loading -->
+      <div id="loading-panel">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">正在載入...</div>
+        <div class="loading-sub" id="loading-sub">請稍候</div>
+      </div>
+
+      <!-- Pause -->
+      <div id="pause-panel">
+        <h2 style="color: #ffd700; font-size: 48px">⏸ 已暫停</h2>
+        <button
+          id="btn-resume"
+          style="
+            background: #00ff88;
+            color: #111;
+            font-size: 20px;
+            padding: 12px 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+          "
+        >
+          繼續遊戲
+        </button>
+      </div>
+
+      <!-- Tutorial -->
+      <div id="tutorial-panel">
+        <h2 style="color: #ffd700; font-size: 36px; margin-bottom: 10px">
+          📖 遊戲教學
+        </h2>
+        <div class="tutorial-step">
+          <strong>1. 報名階段</strong><br />
+          進入遊戲後，每位玩家逐一舉手說出自己的名字。系統會辨識並顯示在畫面上。
+        </div>
+        <div class="tutorial-step">
+          <strong>2. 道具設定</strong><br />
+          所有人完成命名後，任一玩家舉手說「左手XX，右手OO」設定共用代名詞（例如：左手沒有，右手完成）。
+        </div>
+        <div class="tutorial-step">
+          <strong>3. 遊戲進行</strong><br />
+          聽從語音指令，將對應的手舉起或放下。不符合指令者會被淘汰。回合時間會逐漸縮短。
+        </div>
+        <div class="tutorial-step">
+          <strong>4. 勝利條件</strong><br />
+          多人模式：最後剩下一人獲勝<br />
+          單人模式：堅持到最後不被淘汰
+        </div>
+        <button
+          id="btn-close-tutorial"
+          style="
+            background: #ffd700;
+            color: #111;
+            font-size: 18px;
+            padding: 10px 32px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+          "
+        >
+          關閉教學
+        </button>
+      </div>
+
+      <!-- Network warning -->
+      <div
+        id="network-warning"
+        style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(255, 68, 68, 0.95);
+          border: 2px solid #fff;
+          border-radius: 12px;
+          padding: 20px 30px;
+          font-size: 20px;
+          font-weight: bold;
+          color: #fff;
+          display: none;
+          z-index: 60;
+          text-align: center;
+        "
+      >
+        ⚠️ 網路連線中斷<br />
+        <span style="font-size: 14px; font-weight: normal"
+          >請檢查網路後重新整理頁面</span
+        >
+      </div>
+
+      <button id="btn-settings">⚙ Setting</button>
+      <div id="settings-panel">
+        <div class="settings-title">遊戲設定</div>
+        <div style="color: #ffd700; font-size: 14px; margin-bottom: 8px">
+          句型指令庫（每行一條，舉起 / 放下 各自獨立）
+        </div>
+        <div style="display: flex; gap: 12px">
+          <div style="flex: 1">
+            <div style="color: #00ff88; font-size: 13px; margin-bottom: 4px">
+              ✋ 舉起句（手必須舉高時用）
+            </div>
+            <textarea
+              id="csv-raise"
+              style="
+                width: 100%;
+                height: 140px;
+                background: #111;
+                color: #eee;
+                border: 1px solid #555;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 13px;
+                font-family: monospace;
+                resize: vertical;
+                line-height: 1.7;
+              "
+              spellcheck="false"
+            ></textarea>
+          </div>
+          <div style="flex: 1">
+            <div style="color: #ff8888; font-size: 13px; margin-bottom: 4px">
+              👇 放下句（手必須放下時用）
+            </div>
+            <textarea
+              id="csv-lower"
+              style="
+                width: 100%;
+                height: 140px;
+                background: #111;
+                color: #eee;
+                border: 1px solid #555;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 13px;
+                font-family: monospace;
+                resize: vertical;
+                line-height: 1.7;
+              "
+              spellcheck="false"
+            ></textarea>
+          </div>
+        </div>
+        <div
+          style="display: flex; gap: 8px; margin-top: 8px; align-items: center"
+        >
+          <button
+            id="btn-csv-apply"
+            style="
+              background: #00ff88;
+              color: #111;
+              font-size: 14px;
+              padding: 6px 18px;
+              border-radius: 6px;
+              border: none;
+              cursor: pointer;
+              font-weight: bold;
+            "
+          >
+            套用
+          </button>
+          <button
+            id="btn-csv-reset"
+            style="
+              background: #555;
+              color: #fff;
+              font-size: 14px;
+              padding: 6px 18px;
+              border-radius: 6px;
+              border: none;
+              cursor: pointer;
+            "
+          >
+            恢復預設
+          </button>
+          <span id="csv-msg" style="color: #00ff88; font-size: 13px"></span>
+        </div>
+        <div
+          style="
+            margin-top: 12px;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            color: #ffd700;
+            font-size: 14px;
+          "
+        >
+          音量設定
+        </div>
+        <div class="settings-row">
+          <label for="bgm-volume">背景音量</label>
+          <input id="bgm-volume" type="range" min="0" max="100" step="1" />
+          <span id="bgm-volume-value" class="settings-value">0%</span>
+        </div>
+        <div class="settings-row">
+          <label for="tts-volume">口播音量</label>
+          <input id="tts-volume" type="range" min="0" max="100" step="1" />
+          <span id="tts-volume-value" class="settings-value">0%</span>
+        </div>
+        <div
+          style="
+            margin-top: 12px;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            color: #ffd700;
+            font-size: 14px;
+          "
+        >
+          偵測設定
+        </div>
+        <div class="settings-row">
+          <label for="pose-confidence">姿勢準確度</label>
+          <input id="pose-confidence" type="range" min="30" max="70" step="5" />
+          <span id="pose-confidence-value" class="settings-value">50</span>
+        </div>
+        <div
+          style="
+            font-size: 12px;
+            color: #888;
+            margin-top: -6px;
+            padding-left: 110px;
+          "
+        >
+          手機建議降低 / 桌機可提高
+        </div>
+        <div class="settings-row" style="margin-top: 8px">
+          <label for="detect-fps">偵測頻率</label>
+          <input id="detect-fps" type="range" min="5" max="30" step="5" />
+          <span id="detect-fps-value" class="settings-value">15fps</span>
+        </div>
+        <div
+          style="
+            font-size: 12px;
+            color: #888;
+            margin-top: -6px;
+            padding-left: 110px;
+          "
+        >
+          手機建議 10fps / 桌機可提高至 30fps　｜　目前裝置：<span
+            id="device-label"
+            >-</span
+          >
+        </div>
+        <div
+          style="
+            margin-top: 12px;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            color: #ffd700;
+            font-size: 14px;
+          "
+        >
+          遊戲設定
+        </div>
+        <div class="settings-row">
+          <label for="min-round-sec">最短回合秒數</label>
+          <input id="min-round-sec" type="range" min="10" max="30" step="1" />
+          <span id="min-round-sec-value" class="settings-value">1.5s</span>
+        </div>
+        <div
+          style="
+            font-size: 12px;
+            color: #888;
+            margin-top: -6px;
+            padding-left: 110px;
+          "
+        >
+          數字越小難度越高
+        </div>
+      </div>
+
+      <!-- HUD -->
+      <div id="round-badge"></div>
+      <div id="command-hud"></div>
+      <div id="timer-wrap">
+        <div id="timer-num"></div>
+        <div id="timer-track"><div id="timer-fill"></div></div>
+      </div>
+      <div id="status"></div>
+      <div id="mic">🎤</div>
+
+      <!-- Name input -->
+      <div id="name-input-panel">
+        <input
+          type="text"
+          id="name-input"
+          placeholder="輸入名字後按 Enter"
+          autocomplete="off"
+        />
+        <button id="btn-name-submit">確認</button>
+      </div>
+
+      <!-- Controls -->
+      <div id="controls">
+        <button id="btn-start" disabled>開始遊戲</button>
+        <button id="btn-manual-input">手動輸入</button>
+        <button id="btn-pause">⏸ 暫停</button>
+        <button id="btn-reset">重設</button>
+      </div>
+    </div>
+
+    <script type="module">
+      // ═══════════════════════════════════════════════════════════
+      // IMPORT
+      // ═══════════════════════════════════════════════════════════
+      import {
+        PoseLandmarker,
+        FilesetResolver,
+      } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+      // ═══════════════════════════════════════════════════════════
+      // CONSTANTS
+      // ═══════════════════════════════════════════════════════════
+      const MAX_POSES = 8;
+      const TRACK_DIST = 0.13; // normalized x-dist threshold for ID matching
+      const RAISE_MARGIN = 0.05; // wrist must be this much above shoulder (normalized)
+      const RAISE_HOLD_MS = 800; // hand must stay up this long to trigger mic
+      const LOWER_GRACE_MS = 400; // hand must stay down this long to reset tracking
+      const RESULT_MS = 3500; // ms to show round result
+      const MAX_ROUND_SEC = 8;
+      let DETECT_INTERVAL_MS = 66; // reduce CPU load on mobile (~15fps)
+      const OBJECT_TAG_INTERVAL_MS = 220; // throttle wrist color sampling
+      const NEW_PLAYER_DIST_X = 0.16;
+      const NEW_PLAYER_DIST_Y = 0.22;
+      const NEW_PLAYER_COOLDOWN_MS = 900;
+
+      function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        );
+      }
+      const IS_MOBILE = isMobileDevice();
+
+      // ── 依裝置給合適的預設值 ──────────────────────────────────────
+      // 層級：手機 / 平板 / 一般桌機 / 高效能桌機
+      function detectDeviceDefaults() {
+        if (IS_MOBILE) {
+          const isTablet = Math.min(screen.width, screen.height) >= 768;
+          return isTablet
+            ? { fps: 15, confidence: 0.45, label: "平板" }
+            : { fps: 10, confidence: 0.4, label: "手機" };
+        }
+        const cores = navigator.hardwareConcurrency || 4;
+        return cores >= 8
+          ? { fps: 30, confidence: 0.6, label: "高效能桌機" }
+          : { fps: 20, confidence: 0.55, label: "桌機" };
+      }
+      const DEVICE_DEFAULTS = detectDeviceDefaults();
+      DETECT_INTERVAL_MS = Math.round(1000 / DEVICE_DEFAULTS.fps);
+
+      // MediaPipe landmark indices
+      const IDX = {
+        NOSE: 0,
+        L_EYE: 2,
+        R_EYE: 5,
+        L_SHOULDER: 11,
+        R_SHOULDER: 12,
+        L_ELBOW: 13,
+        R_ELBOW: 14,
+        L_WRIST: 15,
+        R_WRIST: 16,
+        L_HIP: 23,
+        R_HIP: 24,
+        L_KNEE: 25,
+        R_KNEE: 26,
+        L_ANKLE: 27,
+        R_ANKLE: 28,
+      };
+
+      // Skeleton connections (subset for clean look)
+      const EDGES = [
+        [IDX.L_SHOULDER, IDX.R_SHOULDER],
+        [IDX.L_SHOULDER, IDX.L_ELBOW],
+        [IDX.L_ELBOW, IDX.L_WRIST],
+        [IDX.R_SHOULDER, IDX.R_ELBOW],
+        [IDX.R_ELBOW, IDX.R_WRIST],
+        [IDX.L_SHOULDER, IDX.L_HIP],
+        [IDX.R_SHOULDER, IDX.R_HIP],
+        [IDX.L_HIP, IDX.R_HIP],
+        [IDX.L_HIP, IDX.L_KNEE],
+        [IDX.L_KNEE, IDX.L_ANKLE],
+        [IDX.R_HIP, IDX.R_KNEE],
+        [IDX.R_KNEE, IDX.R_ANKLE],
+      ];
+
+      // ═══════════════════════════════════════════════════════════
+      // COMMANDS
+      // Each command declares which hand states it SETS.
+      // The game maintains a cumulative requiredState across rounds:
+      // if round 1 sets left:'up', round 2 sets right:'down',
+      // players must keep left hand up AND put right hand down.
+      // ═══════════════════════════════════════════════════════════
+      const lwUp = (lm) =>
+        lm[IDX.L_WRIST].y < lm[IDX.L_SHOULDER].y - RAISE_MARGIN;
+      const rwUp = (lm) =>
+        lm[IDX.R_WRIST].y < lm[IDX.R_SHOULDER].y - RAISE_MARGIN;
+
+      const COMMANDS = [
+        { set: { left: "up" } },
+        { set: { right: "up" } },
+        { set: { left: "up", right: "up" } },
+        { set: { left: "down", right: "down" } },
+        { set: { left: "down" } },
+        { set: { right: "down" } },
+        { set: { left: "up", right: "down" } },
+        { set: { left: "down", right: "up" } },
+      ];
+
+      // Independent phrase pools.
+      // RAISE_PHRASES → sentence that means "this hand must be UP"
+      // LOWER_PHRASES → sentence that means "this hand must be DOWN"
+      // Each round picks one phrase per subject independently from the matching pool.
+      const RAISE_PHRASES = [
+        "舉起來",
+        "不要放下來",
+        "不要不舉起來",
+        "可以舉起來",
+        "不可以放下來",
+        "不可以沒舉起來",
+        "不舉起來算輸",
+        "放下來算輸",
+        "舉起來算贏",
+        "不放下來算贏",
+      ];
+
+      const LOWER_PHRASES = [
+        "放下來",
+        "不要舉起來",
+        "不要不放下來",
+        "可以放下來",
+        "不可以舉起來",
+        "不可以不放下來",
+        "不放下來算輸",
+        "舉起來算輸",
+        "放下來算贏",
+        "不舉起來算贏",
+      ];
+
+      // Track last used indices per pool to avoid immediate repeats
+      let lastRaiseIdx = -1;
+      let lastLowerIdx = -1;
+
+      function pickPhrase(pool, lastIdx) {
+        if (pool.length === 1) return { phrase: pool[0], idx: 0 };
+        let i;
+        do {
+          i = Math.floor(Math.random() * pool.length);
+        } while (i === lastIdx);
+        return { phrase: pool[i], idx: i };
+      }
+
+      // ── CSV editor ──
+      function initCsvEditor() {
+        const taRaise = document.getElementById("csv-raise");
+        const taLower = document.getElementById("csv-lower");
+        const msg = document.getElementById("csv-msg");
+
+        taRaise.value = RAISE_PHRASES.join("\n");
+        taLower.value = LOWER_PHRASES.join("\n");
+
+        function parseLines(ta) {
+          return ta.value
+            .split("\n")
+            .map((l) => l.trim())
+            .filter(Boolean);
+        }
+
+        document.getElementById("btn-csv-apply").onclick = () => {
+          const r = parseLines(taRaise);
+          const l = parseLines(taLower);
+          if (r.length === 0 || l.length === 0) {
+            msg.style.color = "#ff4444";
+            msg.textContent = "兩欄都不能為空！";
+            return;
+          }
+          RAISE_PHRASES.length = 0;
+          r.forEach((p) => RAISE_PHRASES.push(p));
+          LOWER_PHRASES.length = 0;
+          l.forEach((p) => LOWER_PHRASES.push(p));
+          msg.style.color = "#00ff88";
+          msg.textContent = `已套用（舉起 ${r.length} 條 / 放下 ${l.length} 條）`;
+          setTimeout(() => {
+            msg.textContent = "";
+          }, 2500);
+        };
+
+        document.getElementById("btn-csv-reset").onclick = () => {
+          RAISE_PHRASES.length = 0;
+          [
+            "舉起來",
+            "不要放下來",
+            "不要不舉起來",
+            "可以舉起來",
+            "不可以放下來",
+            "不可以沒舉起來",
+            "不舉起來算輸",
+            "放下來算輸",
+            "舉起來算贏",
+            "不放下來算贏",
+          ].forEach((p) => RAISE_PHRASES.push(p));
+          LOWER_PHRASES.length = 0;
+          [
+            "放下來",
+            "不要舉起來",
+            "不要不放下來",
+            "可以放下來",
+            "不可以舉起來",
+            "不可以不放下來",
+            "不放下來算輸",
+            "舉起來算輸",
+            "放下來算贏",
+            "不舉起來算贏",
+          ].forEach((p) => LOWER_PHRASES.push(p));
+          taRaise.value = RAISE_PHRASES.join("\n");
+          taLower.value = LOWER_PHRASES.join("\n");
+          msg.style.color = "#aaa";
+          msg.textContent = "已恢復預設";
+          setTimeout(() => {
+            msg.textContent = "";
+          }, 2000);
+        };
+      }
+
+      function initSettingsPanel() {
+        const bgmSlider = document.getElementById("bgm-volume");
+        const ttsSlider = document.getElementById("tts-volume");
+        const poseSlider = document.getElementById("pose-confidence");
+        const minRoundSlider = document.getElementById("min-round-sec");
+        const fpsSlider = document.getElementById("detect-fps");
+        const bgmValue = document.getElementById("bgm-volume-value");
+        const ttsValue = document.getElementById("tts-volume-value");
+        const poseValue = document.getElementById("pose-confidence-value");
+        const minRoundValue = document.getElementById("min-round-sec-value");
+        const fpsValue = document.getElementById("detect-fps-value");
+
+        const syncBgm = (percent) => {
+          audioSettings.bgmVolume = (percent / 100) * 1.2;
+          bgmValue.textContent = `${percent}%`;
+          if (bgmMasterGain) bgmMasterGain.gain.value = audioSettings.bgmVolume;
+        };
+        const syncTts = (percent) => {
+          audioSettings.ttsVolume = percent / 100;
+          ttsValue.textContent = `${percent}%`;
+        };
+        const syncPose = (value) => {
+          audioSettings.poseConfidence = value / 100;
+          poseValue.textContent = String(value);
+        };
+        const syncMinRound = (value) => {
+          audioSettings.minRoundSec = value / 10;
+          minRoundValue.textContent = `${audioSettings.minRoundSec.toFixed(1)}s`;
+        };
+        const syncFps = (fps) => {
+          DETECT_INTERVAL_MS = Math.round(1000 / fps);
+          fpsValue.textContent = `${fps}fps`;
+        };
+
+        bgmSlider.value = String(
+          Math.round((audioSettings.bgmVolume / 1.2) * 100),
+        );
+        ttsSlider.value = String(Math.round(audioSettings.ttsVolume * 100));
+        poseSlider.value = String(
+          Math.round(audioSettings.poseConfidence * 100),
+        );
+        minRoundSlider.value = String(
+          Math.round(audioSettings.minRoundSec * 10),
+        );
+        fpsSlider.value = String(Math.round(1000 / DETECT_INTERVAL_MS));
+        const deviceLabelEl = document.getElementById("device-label");
+        if (deviceLabelEl) deviceLabelEl.textContent = DEVICE_DEFAULTS.label;
+        syncBgm(Number(bgmSlider.value));
+        syncTts(Number(ttsSlider.value));
+        syncPose(Number(poseSlider.value));
+        syncMinRound(Number(minRoundSlider.value));
+        syncFps(Number(fpsSlider.value));
+
+        bgmSlider.oninput = () => syncBgm(Number(bgmSlider.value));
+        ttsSlider.oninput = () => syncTts(Number(ttsSlider.value));
+        poseSlider.oninput = () => syncPose(Number(poseSlider.value));
+        minRoundSlider.oninput = () =>
+          syncMinRound(Number(minRoundSlider.value));
+        fpsSlider.oninput = () => syncFps(Number(fpsSlider.value));
+
+        btnSettings.onclick = (e) => {
+          e.stopPropagation();
+          playSound("button");
+          const opened = settingsPanel.style.display !== "none";
+          settingsPanel.style.display = opened ? "none" : "block";
+        };
+
+        // Click outside to close
+        document.addEventListener("click", (e) => {
+          if (
+            settingsPanel.style.display !== "none" &&
+            !settingsPanel.contains(e.target) &&
+            !btnSettings.contains(e.target)
+          ) {
+            settingsPanel.style.display = "none";
+          }
+        });
+
+        // Prevent clicks inside panel from closing it
+        settingsPanel.onclick = (e) => {
+          e.stopPropagation();
+        };
+      }
+
+      function initNetworkMonitor() {
+        window.addEventListener("offline", () => {
+          networkWarning.style.display = "block";
+          if (state === S.GAMING) pauseGame();
+        });
+        window.addEventListener("online", () => {
+          networkWarning.style.display = "none";
+        });
+      }
+
+      function showTutorial() {
+        playSound("button");
+        tutorialPanel.style.display = "flex";
+      }
+
+      function closeTutorial() {
+        playSound("button");
+        tutorialPanel.style.display = "none";
+      }
+
+      function pauseGame() {
+        if (state !== S.GAMING) return;
+        playSound("button");
+        pausedFromState = state;
+        state = S.PAUSED;
+        if (rafTimer) {
+          cancelAnimationFrame(rafTimer);
+          rafTimer = null;
+        }
+        pausedTimerRemaining = Math.max(0, timerEnd - performance.now());
+        pausePanel.style.display = "flex";
+        speechSynthesis.pause();
+      }
+
+      function resumeGame() {
+        if (state !== S.PAUSED) return;
+        playSound("button");
+        state = pausedFromState;
+        pausedFromState = null;
+        pausePanel.style.display = "none";
+        if (state === S.GAMING && pausedTimerRemaining > 0) {
+          timerEnd = performance.now() + pausedTimerRemaining;
+          countdownTick();
+        }
+        speechSynthesis.resume();
+      }
+
+      // Return display label for a hand side using global aliases
+      function handLabel(side) {
+        const alias = handAliases[side];
+        return alias || (side === "left" ? "左手" : "右手");
+      }
+
+      function generateCommandText(cmd) {
+        const upSubjects = [];
+        const downSubjects = [];
+        if (cmd.set.left === "up") upSubjects.push(handLabel("left"));
+        if (cmd.set.right === "up") upSubjects.push(handLabel("right"));
+        if (cmd.set.left === "down") downSubjects.push(handLabel("left"));
+        if (cmd.set.right === "down") downSubjects.push(handLabel("right"));
+
+        // Merge into "雙手" when both sides share the same default label
+        const bothUp = cmd.set.left === "up" && cmd.set.right === "up";
+        const bothDown = cmd.set.left === "down" && cmd.set.right === "down";
+        const upSubj =
+          bothUp && upSubjects[0] === "左手" && upSubjects[1] === "右手"
+            ? "雙手"
+            : upSubjects.join("和");
+        const downSubj =
+          bothDown && downSubjects[0] === "左手" && downSubjects[1] === "右手"
+            ? "雙手"
+            : downSubjects.join("和");
+
+        const parts = [];
+        if (upSubj) {
+          const { phrase, idx } = pickPhrase(RAISE_PHRASES, lastRaiseIdx);
+          lastRaiseIdx = idx;
+          parts.push(`${upSubj}${phrase}`);
+        }
+        if (downSubj) {
+          const { phrase, idx } = pickPhrase(LOWER_PHRASES, lastLowerIdx);
+          lastLowerIdx = idx;
+          parts.push(`${downSubj}${phrase}`);
+        }
+        // After round 12, randomly swap left/right clause order
+        if (round >= 12 && parts.length === 2 && Math.random() < 0.5) {
+          parts.reverse();
+        }
+        return parts.join("，");
+      }
+
+      // requiredState accumulates across rounds; null = unconstrained
+      let requiredState = { left: null, right: null };
+
+      function applyCommand(cmd) {
+        if ("left" in cmd.set) requiredState.left = cmd.set.left;
+        if ("right" in cmd.set) requiredState.right = cmd.set.right;
+      }
+
+      function checkCompliance(lm) {
+        if (requiredState.left === "up" && !lwUp(lm)) return false;
+        if (requiredState.left === "down" && lwUp(lm)) return false;
+        if (requiredState.right === "up" && !rwUp(lm)) return false;
+        if (requiredState.right === "down" && rwUp(lm)) return false;
+        return true;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // STATE
+      // ═══════════════════════════════════════════════════════════
+      const S = {
+        IDLE: 0,
+        SETUP: 1,
+        GAMING: 2,
+        RESULT: 3,
+        WINNER: 4,
+        PAUSED: 5,
+      };
+      let state = S.IDLE;
+      let pausedFromState = null;
+      let pausedTimerRemaining = 0;
+
+      let players = [];
+      // player = { id, name, lastX, lastY, lm, active, _seen }
+      let nextId = 0;
+
+      let round = 0;
+      let lastCmdIdx = -1;
+      let currentCmd = null;
+      let timerTotal = MAX_ROUND_SEC;
+      let timerEnd = 0;
+      let rafTimer = null;
+
+      // Setup listening (name capture)
+      let listeningId = null;
+      let raisePlayerId = null; // player we're tracking for name registration
+      let raiseStartAt = null; // when they started raising
+      let lowerSince = null; // when hand went explicitly down
+      let recognition = null;
+
+      // Color calibration
+      // colorObjects: global list { name, r, g, b }
+      // handAliases: one shared alias pair for all players
+      const colorObjects = [];
+      const handAliases = { left: null, right: null };
+      let calibratingId = null;
+      let calibratingPlayer = null; // player being calibrated
+      let calRecognition = null;
+      let calGotResult = false; // prevent onend from firing finishCalibration when we got a result
+      const sampleCanvas = document.createElement("canvas");
+      const sampleCtx = sampleCanvas.getContext("2d");
+      const COLOR_THRESHOLD = 80;
+      const CAL_RETRY_DELAY_MS = 280;
+
+      // Voice trigger (continuously listens for "開始遊戲" during SETUP)
+      let voiceTrigger = null;
+      let voiceTriggerActive = false;
+
+      // ═══════════════════════════════════════════════════════════
+      // DOM REFS
+      // ═══════════════════════════════════════════════════════════
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const cmdHud = document.getElementById("command-hud");
+      const roundBadge = document.getElementById("round-badge");
+      const timerWrap = document.getElementById("timer-wrap");
+      const timerNum = document.getElementById("timer-num");
+      const timerFill = document.getElementById("timer-fill");
+      const statusEl = document.getElementById("status");
+      const micEl = document.getElementById("mic");
+      const btnSettings = document.getElementById("btn-settings");
+      const settingsPanel = document.getElementById("settings-panel");
+      const idlePanel = document.getElementById("idle-panel");
+      const winnerPanel = document.getElementById("winner-panel");
+      const winnerName = document.getElementById("winner-name");
+      const winnerRounds = document.getElementById("winner-rounds");
+      const resultPanel = document.getElementById("result-panel");
+      const resultTitle = document.getElementById("result-title");
+      const resultNames = document.getElementById("result-names");
+      const resultRemain = document.getElementById("result-remain");
+      const btnStart = document.getElementById("btn-start");
+      const btnReset = document.getElementById("btn-reset");
+      const btnManualInput = document.getElementById("btn-manual-input");
+      const btnPause = document.getElementById("btn-pause");
+      const btnResume = document.getElementById("btn-resume");
+      const btnTutorial = document.getElementById("btn-tutorial");
+      const btnCloseTutorial = document.getElementById("btn-close-tutorial");
+      const loadingPanel = document.getElementById("loading-panel");
+      const loadingText = document.getElementById("loading-text");
+      const loadingSub = document.getElementById("loading-sub");
+      const pausePanel = document.getElementById("pause-panel");
+      const tutorialPanel = document.getElementById("tutorial-panel");
+      const networkWarning = document.getElementById("network-warning");
+      const nameInputPanel = document.getElementById("name-input-panel");
+      const nameInput = document.getElementById("name-input");
+      const btnNameSubmit = document.getElementById("btn-name-submit");
+
+      const audioSettings = {
+        bgmVolume: 0.234,
+        ttsVolume: 1,
+        poseConfidence: DEVICE_DEFAULTS.confidence,
+        minRoundSec: 1.5,
+      };
+
+      let soundCtx = null;
+
+      function initSoundContext() {
+        if (!soundCtx) {
+          soundCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+
+      function playSound(type) {
+        initSoundContext();
+        const now = soundCtx.currentTime;
+        switch (type) {
+          case "success":
+            playSoundSuccess(now);
+            break;
+          case "fail":
+            playSoundFail(now);
+            break;
+          case "button":
+            playSoundButton(now);
+            break;
+          case "countdown":
+            playSoundCountdown(now);
+            break;
+          case "eliminate":
+            playSoundEliminate(now);
+            break;
+        }
+      }
+
+      function playSoundSuccess(t) {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(1200, t + 0.15);
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.15);
+      }
+
+      function playSoundFail(t) {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.frequency.setValueAtTime(400, t);
+        osc.frequency.exponentialRampToValueAtTime(150, t + 0.25);
+        gain.gain.setValueAtTime(0.35, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.25);
+      }
+
+      function playSoundButton(t) {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.frequency.setValueAtTime(600, t);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.08);
+      }
+
+      function playSoundCountdown(t) {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.frequency.setValueAtTime(1000, t);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.1);
+      }
+
+      function playSoundEliminate(t) {
+        const osc = soundCtx.createOscillator();
+        const gain = soundCtx.createGain();
+        osc.frequency.setValueAtTime(500, t);
+        osc.frequency.exponentialRampToValueAtTime(80, t + 0.4);
+        gain.gain.setValueAtTime(0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.connect(gain);
+        gain.connect(soundCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.4);
+      }
+
+
+      // ═══════════════════════════════════════════════════════════
+      // INIT
+      // ═══════════════════════════════════════════════════════════
+      let landmarker = null;
+      let lastVideoTime = -1;
+      let lastDetectAt = 0;
+
+      let fpsFrameCount = 0;
+      let fpsLastTime = performance.now();
+      let currentFps = 60;
+      let performanceDegradation = 0;
+      let lastPlayerCreateAt = 0;
+
+      async function init() {
+        loadingText.textContent = "正在啟動攝影機...";
+        loadingSub.textContent = "需要攝影機權限";
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: 1280, height: 720 },
+            audio: false,
+          });
+          video.srcObject = stream;
+          await new Promise((r) => {
+            video.onloadedmetadata = r;
+          });
+          video.play();
+        } catch (e) {
+          loadingPanel.style.display = "none";
+          alert(
+            "無法存取攝影機：" +
+              e.message +
+              "\n請使用 localhost 或 HTTPS 開啟本頁面。",
+          );
+          return;
+        }
+
+        loadingText.textContent = "正在載入姿勢偵測模型...";
+        loadingSub.textContent = "首次載入可能需要數秒";
+
+        try {
+          const resolver = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
+          );
+          landmarker = await PoseLandmarker.createFromOptions(resolver, {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numPoses: MAX_POSES,
+            minPoseDetectionConfidence: audioSettings.poseConfidence,
+            minPosePresenceConfidence: audioSettings.poseConfidence,
+            minTrackingConfidence: audioSettings.poseConfidence,
+          });
+        } catch (e) {
+          loadingPanel.style.display = "none";
+          alert("姿勢偵測模型載入失敗，請檢查網路連線。\n\n" + e.message);
+          return;
+        }
+
+        loadingText.textContent = "準備完成！";
+        loadingSub.textContent = "";
+
+        document.getElementById("btn-enter").onclick = enterSetup;
+        document.getElementById("btn-again").onclick = resetAll;
+        btnStart.onclick = startGame;
+        btnReset.onclick = resetAll;
+        btnManualInput.onclick = handleManualInput;
+        btnNameSubmit.onclick = submitNameInput;
+        nameInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submitNameInput();
+          }
+        });
+        btnPause.onclick = pauseGame;
+        btnResume.onclick = resumeGame;
+        btnTutorial.onclick = showTutorial;
+        btnCloseTutorial.onclick = closeTutorial;
+        initCsvEditor();
+        initSettingsPanel();
+        initNetworkMonitor();
+
+        speechSynthesis.getVoices();
+        speechSynthesis.addEventListener("voiceschanged", () =>
+          speechSynthesis.getVoices(),
+        );
+
+        requestAnimationFrame(loop);
+
+        setTimeout(() => {
+          loadingPanel.style.display = "none";
+        }, 600);
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // MAIN LOOP
+      // ═══════════════════════════════════════════════════════════
+      function loop() {
+        requestAnimationFrame(loop);
+
+        // Performance monitoring
+        fpsFrameCount++;
+        const fpsNow = performance.now();
+        if (fpsNow - fpsLastTime >= 1000) {
+          currentFps = Math.round(
+            (fpsFrameCount * 1000) / (fpsNow - fpsLastTime),
+          );
+          fpsFrameCount = 0;
+          fpsLastTime = fpsNow;
+
+          // Degradation alert (P2-9)
+          if (currentFps < 15 && performanceDegradation === 0) {
+            performanceDegradation = 1;
+            console.warn(`效能偵測：FPS=${currentFps}，建議調低姿勢偵測準確度`);
+          } else if (currentFps >= 20 && performanceDegradation === 1) {
+            performanceDegradation = 0;
+          }
+        }
+
+        // Sync canvas buffer size to video intrinsic size
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+        if (canvas.width !== vw || canvas.height !== vh) {
+          canvas.width = vw;
+          canvas.height = vh;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!landmarker || video.readyState < 2) return;
+
+        // Pause state - skip game logic updates
+        if (state === S.PAUSED) {
+          render();
+          return;
+        }
+
+        // Run pose detection on new frame
+        const now = performance.now();
+        if (
+          video.currentTime !== lastVideoTime &&
+          now - lastDetectAt >= DETECT_INTERVAL_MS
+        ) {
+          lastVideoTime = video.currentTime;
+          lastDetectAt = now;
+          const result = landmarker.detectForVideo(video, now);
+          updateTracking(result.landmarks || []);
+        }
+
+        render();
+
+        if (state === S.SETUP) tickSetup();
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // PLAYER TRACKING
+      // ═══════════════════════════════════════════════════════════
+      function updateTracking(allLandmarks) {
+        const now = performance.now();
+        for (const p of players) p._seen = false;
+
+        const filteredLandmarks = [];
+        for (const lm of allLandmarks) {
+          const nx = lm[IDX.NOSE].x;
+          const ny = lm[IDX.NOSE].y;
+          const duplicated = filteredLandmarks.some((f) => {
+            const fx = f[IDX.NOSE].x;
+            const fy = f[IDX.NOSE].y;
+            return (
+              Math.abs(fx - nx) < NEW_PLAYER_DIST_X * 0.5 &&
+              Math.abs(fy - ny) < NEW_PLAYER_DIST_Y * 0.5
+            );
+          });
+          if (!duplicated) filteredLandmarks.push(lm);
+        }
+
+        for (const lm of filteredLandmarks) {
+          const nx = lm[IDX.NOSE].x;
+          const ny = lm[IDX.NOSE].y;
+
+          // Find nearest unmatched player by nose x
+          let best = null,
+            bestDist = TRACK_DIST;
+          for (const p of players) {
+            if (p._seen) continue;
+            const d = Math.abs(p.lastX - nx);
+            if (d < bestDist) {
+              bestDist = d;
+              best = p;
+            }
+          }
+
+          if (best) {
+            best.lm = lm;
+            best.lastX = nx;
+            best.lastY = ny;
+            best._seen = true;
+          } else if (state === S.SETUP) {
+            const closeToExisting = players.some(
+              (p) =>
+                Math.abs(p.lastX - nx) < NEW_PLAYER_DIST_X &&
+                Math.abs(p.lastY - ny) < NEW_PLAYER_DIST_Y,
+            );
+            const cooldownPassed =
+              now - lastPlayerCreateAt > NEW_PLAYER_COOLDOWN_MS;
+            if (!closeToExisting && cooldownPassed) {
+              // New person detected → register
+              players.push({
+                id: nextId++,
+                name: null,
+                lastX: nx,
+                lastY: ny,
+                lm,
+                active: true,
+                eliminatedRound: null,
+                lastDetectedObject: null,
+                lastObjectSampleAt: 0,
+                _seen: true,
+              });
+              lastPlayerCreateAt = now;
+            }
+          }
+        }
+
+        // Clear landmarks for temporarily out-of-frame players
+        for (const p of players) {
+          if (!p._seen) p.lm = null;
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // CANVAS RENDERING
+      // Video is mirrored via CSS scaleX(-1).
+      // To align drawings with mirrored video: flip x = (1 - lm.x) * W
+      // ═══════════════════════════════════════════════════════════
+      const W = () => canvas.width;
+      const H = () => canvas.height;
+      const px = (lm) => (1 - lm.x) * W(); // flip x
+      const py = (lm) => lm.y * H();
+
+      function render() {
+        for (const p of players) {
+          if (!p.lm) continue;
+
+          const nose = p.lm[IDX.NOSE];
+          const hx = px(nose);
+          const hy = py(nose) - 50;
+          const label = p.name || (state === S.SETUP ? "請舉手" : "?");
+          const labelColor = p.active
+            ? p.name
+              ? "#4FC3F7"
+              : "#FFD700"
+            : "#555";
+
+          // Name label background
+          ctx.font = "bold 26px Microsoft JhengHei, Arial";
+          const tw = ctx.measureText(label).width;
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.beginPath();
+          roundRect(hx - tw / 2 - 10, hy - 28, tw + 20, 34, 7);
+          ctx.fill();
+
+          // Name label text
+          ctx.fillStyle = labelColor;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(label, hx, hy);
+
+          // Held object tag (below name, during game or calibration)
+          if (p.name && p.lm && colorObjects.length > 0) {
+            const obj = getDetectedObjectTag(p);
+            if (obj) {
+              ctx.font = "bold 20px Microsoft JhengHei, Arial";
+              const ow = ctx.measureText(obj).width;
+              ctx.fillStyle = "rgba(0,0,0,0.55)";
+              ctx.beginPath();
+              roundRect(hx - ow / 2 - 8, hy + 4, ow + 16, 26, 5);
+              ctx.fill();
+              ctx.fillStyle = "#FFD700";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "top";
+              ctx.fillText(obj, hx, hy + 6);
+            }
+          }
+
+          // Listening highlight ring (setup phase)
+          if (
+            state === S.SETUP &&
+            (p.id === listeningId || p.id === calibratingId)
+          ) {
+            ctx.strokeStyle = p.id === calibratingId ? "#FFD700" : "#FF4444";
+            ctx.lineWidth = 4;
+            ctx.setLineDash([10, 5]);
+            ctx.beginPath();
+            ctx.arc(hx, py(nose), 65, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        }
+      }
+
+      function roundRect(x, y, w, h, r) {
+        if (typeof ctx.roundRect === "function") {
+          ctx.roundRect(x, y, w, h, r);
+        } else {
+          ctx.rect(x, y, w, h);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // SETUP PHASE
+      // ═══════════════════════════════════════════════════════════
+      function tickSetup() {
+        const unnamed = players.filter((p) => !p.name && p.lm && p.active);
+        const named = players.filter((p) => p.name && p.active);
+        const aliasesReady = areHandAliasesReady();
+
+        btnStart.disabled =
+          named.length < 1 || unnamed.length > 0 || !isSetupReadyToStart();
+
+        const needInput =
+          unnamed.length > 0 || (!aliasesReady && named.length > 0);
+        if (needInput) {
+          nameInputPanel.style.display = "flex";
+          if (unnamed.length > 0) {
+            nameInput.placeholder = "輸入名字後按 Enter";
+          } else {
+            nameInput.placeholder = "左手XX 右手OO（如：左手沒有 右手完成）";
+          }
+        } else {
+          nameInputPanel.style.display = "none";
+        }
+
+        if (listeningId !== null || calibratingId !== null) return; // busy listening/calibrating
+
+        const raised = unnamed.filter((p) => hasHandRaised(p.lm));
+        const now = performance.now();
+
+        // ── 找本幀的觸發候選人 ──────────────────────────────────────
+        // 優先：已在追蹤的人（就算這幀沒在 raised 裡也繼續等）
+        // 其次：唯一舉手的人
+        let candidate = raised.find((p) => p.id === raisePlayerId) || null;
+        if (candidate === null && raised.length === 1) candidate = raised[0];
+
+        if (candidate !== null) {
+          if (candidate.id !== raisePlayerId) {
+            // 新玩家開始舉手，重新計時
+            raisePlayerId = candidate.id;
+            raiseStartAt = now;
+          }
+          lowerSince = null;
+          showStatus(`偵測到舉手！準備錄音...`);
+          if (now - raiseStartAt >= RAISE_HOLD_MS) {
+            const pid = raisePlayerId;
+            raisePlayerId = null;
+            raiseStartAt = null;
+            startListening(pid);
+            return;
+          }
+        } else {
+          // 本幀找不到候選人，但追蹤中的人 lm 暫時消失 → 繼續等
+          if (raisePlayerId !== null) {
+            const tracked = players.find((p) => p.id === raisePlayerId);
+            const handExplicitlyDown =
+              tracked && tracked.lm && !hasHandRaised(tracked.lm);
+            if (!tracked || !tracked.active) {
+              clearDebounce(); // 玩家離開畫面才重置
+            } else if (handExplicitlyDown) {
+              if (lowerSince === null) lowerSince = now;
+              if (now - lowerSince >= LOWER_GRACE_MS) clearDebounce();
+            }
+            // lm 暫時 null → 什麼都不做，繼續等
+          }
+          if (raised.length > 1) {
+            showStatus("一次一個人舉手！");
+          } else if (unnamed.length > 0) {
+            if (raisePlayerId === null)
+              showStatus(`還有 ${unnamed.length} 人未命名，請舉手說你的名字`);
+          } else if (!aliasesReady) {
+            showStatus(
+              "尚未設定共用道具代名詞，請舉手說「左手XX」或「右手OO」",
+            );
+            const raisedNamed = named.filter(
+              (p) => p.lm && hasHandRaised(p.lm),
+            );
+            if (raisedNamed.length === 1) {
+              const candidate = raisedNamed[0];
+              calibratingId = candidate.id;
+              calibratingPlayer = candidate;
+              stopVoiceTrigger();
+              speak(
+                `${candidate.name}，請設定共用代名詞，請說左手加名字或右手加名字`,
+              ).then(() => {
+                if (
+                  state === S.SETUP &&
+                  calibratingPlayer?.id === candidate.id
+                ) {
+                  listenForObject(candidate);
+                }
+              });
+            } else if (raisedNamed.length > 1) {
+              showStatus("請一次一位玩家舉手設定共用道具代名詞");
+            }
+          } else if (named.length >= 1) {
+            showStatus(`${named.length} 人已就緒，可以開始！`);
+          } else {
+            showStatus("請站到鏡頭前...");
+          }
+        }
+      }
+
+      function hasHandRaised(lm) {
+        const lw = lm[IDX.L_WRIST],
+          ls = lm[IDX.L_SHOULDER];
+        const rw = lm[IDX.R_WRIST],
+          rs = lm[IDX.R_SHOULDER];
+        return (
+          (lw && ls && lw.y < ls.y - RAISE_MARGIN) ||
+          (rw && rs && rw.y < rs.y - RAISE_MARGIN)
+        );
+      }
+
+      function clearDebounce() {
+        raisePlayerId = null;
+        raiseStartAt = null;
+        lowerSince = null;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // SPEECH RECOGNITION
+      // ═══════════════════════════════════════════════════════════
+
+      function positionMicAt(player) {
+        if (!player || !player.lm) return;
+        const nose = player.lm[IDX.NOSE];
+        micEl.style.left = `${(1 - nose.x) * 100}%`;
+        micEl.style.top = `${nose.y * 100}%`;
+      }
+
+      let listenStartTimer = null;
+      let listenTimeout = null;
+
+      function startListening(playerId) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          showStatus("請在下方輸入框輸入名字");
+          nameInput.focus();
+          return;
+        }
+
+        listeningId = playerId;
+        stopVoiceTrigger();
+        positionMicAt(players.find((p) => p.id === playerId));
+        micEl.style.display = "flex";
+        showStatus("🎤 請說出你的名字...");
+
+        clearTimeout(listenStartTimer);
+        listenStartTimer = setTimeout(() => doListen(playerId), 400);
+      }
+
+      function doListen(playerId) {
+        if (listeningId !== playerId) return;
+
+        if (recognition) {
+          recognition.onend = null;
+          recognition.onerror = null;
+          recognition.onresult = null;
+          try {
+            recognition.abort();
+          } catch (_) {}
+          recognition = null;
+        }
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const rec = (recognition = new SR());
+        rec.lang = "zh-TW";
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+
+        let gotFinalResult = false;
+        clearTimeout(listenTimeout);
+        listenTimeout = setTimeout(() => {
+          if (recognition === rec && !gotFinalResult) {
+            stopListening();
+            showStatus("沒聽到，請再舉手一次說名字");
+          }
+        }, 6000);
+
+        rec.onresult = (e) => {
+          if (recognition !== rec) return;
+          const lastResult = e.results[e.results.length - 1];
+          if (lastResult.isFinal) {
+            gotFinalResult = true;
+            clearTimeout(listenTimeout);
+            const text = lastResult[0].transcript.trim();
+            if (text) {
+              assignName(playerId, text);
+            } else {
+              stopListening();
+              showStatus("沒聽到名字，請再舉手一次");
+            }
+          }
+        };
+
+        rec.onerror = (e) => {
+          if (recognition !== rec) return;
+          clearTimeout(listenTimeout);
+          if (e.error === "not-allowed" || e.error === "audio-capture") {
+            showStatus("⚠️ 麥克風無法使用，請檢查權限");
+            stopListening();
+          }
+        };
+
+        rec.onend = () => {
+          if (recognition !== rec) return;
+          clearTimeout(listenTimeout);
+          if (listeningId !== playerId) return;
+          if (!gotFinalResult) {
+            stopListening();
+            showStatus("沒聽到，請再舉手一次說名字");
+          }
+        };
+
+        try {
+          rec.start();
+        } catch (_) {
+          stopListening();
+          showStatus("沒聽到，請再舉手一次說名字");
+        }
+      }
+
+      function stopListening() {
+        clearTimeout(listenStartTimer);
+        clearTimeout(listenTimeout);
+        listenStartTimer = null;
+        listenTimeout = null;
+        micEl.style.display = "none";
+        listeningId = null;
+        if (recognition) {
+          recognition.onend = null;
+          recognition.onerror = null;
+          recognition.onresult = null;
+          try {
+            recognition.abort();
+          } catch (_) {}
+          recognition = null;
+        }
+        if (state === S.SETUP && calibratingId === null) startVoiceTrigger();
+      }
+
+      // ── Voice trigger: listens for "開始遊戲" / "開始" ──
+      const TRIGGER_WORDS = ["開始遊戲", "開始", "start"];
+
+      function startVoiceTrigger() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR || voiceTriggerActive) return;
+
+        voiceTrigger = new SR();
+        voiceTrigger.lang = "zh-TW";
+        // Safari on iOS is more stable with short non-continuous sessions.
+        voiceTrigger.continuous = false;
+        voiceTrigger.interimResults = false;
+
+        voiceTrigger.onresult = (e) => {
+          const text = e.results[e.results.length - 1][0].transcript.trim();
+          if (TRIGGER_WORDS.some((w) => text.includes(w))) {
+            if (!btnStart.disabled) startGame();
+          }
+        };
+        voiceTrigger.onend = () => {
+          voiceTriggerActive = false;
+          if (
+            state === S.SETUP &&
+            listeningId === null &&
+            calibratingId === null
+          )
+            startVoiceTrigger();
+        };
+        voiceTrigger.onerror = () => {
+          voiceTriggerActive = false;
+          if (
+            state === S.SETUP &&
+            listeningId === null &&
+            calibratingId === null
+          ) {
+            setTimeout(() => startVoiceTrigger(), 350);
+          }
+        };
+
+        voiceTrigger.start();
+        voiceTriggerActive = true;
+      }
+
+      function stopVoiceTrigger() {
+        voiceTriggerActive = false;
+        if (voiceTrigger) {
+          voiceTrigger.onend = null;
+          voiceTrigger.onerror = null;
+          voiceTrigger.onresult = null;
+          try {
+            voiceTrigger.abort();
+          } catch (_) {}
+          voiceTrigger = null;
+        }
+      }
+
+      function assignName(playerId, name) {
+        const p = players.find((q) => q.id === playerId);
+        if (p && !p.name) {
+          p.name = name;
+          stopListening();
+          playSound("success");
+          showStatus(`${name} 已完成命名`);
+        } else {
+          stopListening();
+        }
+      }
+
+      function handleManualInput() {
+        if (state !== S.SETUP) return;
+        nameInput.focus();
+      }
+
+      /**
+       * @description Inline input field submit handler.
+       * Auto-detects context: assigns name to first unnamed player,
+       * or parses alias input when all players are named.
+       */
+      function submitNameInput() {
+        if (state !== S.SETUP) return;
+        const text = nameInput.value.trim();
+        if (!text) return;
+
+        const unnamed = players.filter((p) => !p.name && p.lm && p.active);
+        const named = players.filter((p) => p.name && p.active);
+
+        if (unnamed.length > 0) {
+          const targetId =
+            listeningId !== null ? listeningId : unnamed[0].id;
+          nameInput.value = "";
+          stopListening();
+          assignName(targetId, text);
+        } else if (!areHandAliasesReady() && named.length > 0) {
+          nameInput.value = "";
+          processManualObjectInput(named[0], text);
+        }
+        nameInput.focus();
+      }
+
+      function processManualObjectInput(player, input) {
+        const normalized = input.replace(/\s+/g, "");
+        const leftIdx = normalized.indexOf("左手");
+        const rightIdx = normalized.indexOf("右手");
+
+        let leftAlias = null;
+        let rightAlias = null;
+
+        if (leftIdx !== -1) {
+          let leftEnd =
+            rightIdx !== -1 && rightIdx > leftIdx
+              ? rightIdx
+              : normalized.length;
+          leftAlias = normalized.slice(leftIdx + 2, leftEnd).trim();
+        }
+        if (rightIdx !== -1) {
+          let rightEnd =
+            leftIdx !== -1 && leftIdx > rightIdx ? leftIdx : normalized.length;
+          rightAlias = normalized.slice(rightIdx + 2, rightEnd).trim();
+        }
+
+        if (!leftAlias || !rightAlias) {
+          playSound("fail");
+          showStatus("格式錯誤，請確認包含左手與右手兩邊代名詞");
+          return;
+        }
+
+        const p = players.find((q) => q.id === player.id);
+        if (!p || !p.lm) {
+          playSound("fail");
+          showStatus("找不到該玩家位置");
+          return;
+        }
+
+        const leftColor = sampleWristColorSide(p.lm, "left");
+        const rightColor = sampleWristColorSide(p.lm, "right");
+
+        if (leftColor && rightColor) {
+          playSound("success");
+          colorObjects.push({ name: leftAlias, ...leftColor });
+          colorObjects.push({ name: rightAlias, ...rightColor });
+          handAliases.left = leftAlias;
+          handAliases.right = rightAlias;
+          showStatus(
+            `已記錄：左手「${leftAlias}」、右手「${rightAlias}」，共用設定完成！`,
+          );
+          speak(
+            `已記錄：左手「${leftAlias}」、右手「${rightAlias}」，共用設定完成！`,
+          );
+        } else {
+          playSound("fail");
+          showStatus("找不到手部位置，請確認雙手在鏡頭內");
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // COLOR CALIBRATION
+      // ═══════════════════════════════════════════════════════════
+
+      function sampleWristColor(lm) {
+        // Draw un-mirrored video to sample canvas
+        sampleCanvas.width = video.videoWidth || 1280;
+        sampleCanvas.height = video.videoHeight || 720;
+        sampleCtx.drawImage(video, 0, 0);
+
+        // Pick the raised wrist (or average both if both raised / neither raised)
+        const lw = lm[IDX.L_WRIST],
+          ls = lm[IDX.L_SHOULDER];
+        const rw = lm[IDX.R_WRIST],
+          rs = lm[IDX.R_SHOULDER];
+        const lRaised = lw && ls && lw.y < ls.y - RAISE_MARGIN;
+        const rRaised = rw && rs && rw.y < rs.y - RAISE_MARGIN;
+
+        const points = [];
+        if (lRaised) points.push(lw);
+        if (rRaised) points.push(rw);
+        if (!points.length && lw) points.push(lw);
+        if (!points.length && rw) points.push(rw);
+
+        let totalR = 0,
+          totalG = 0,
+          totalB = 0,
+          count = 0;
+        for (const pt of points) {
+          const cx = Math.round(pt.x * sampleCanvas.width);
+          const cy = Math.round(pt.y * sampleCanvas.height);
+          const r = 20;
+          const imageData = sampleCtx.getImageData(
+            Math.max(0, cx - r),
+            Math.max(0, cy - r),
+            r * 2,
+            r * 2,
+          );
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            totalR += imageData.data[i];
+            totalG += imageData.data[i + 1];
+            totalB += imageData.data[i + 2];
+            count++;
+          }
+        }
+        return count
+          ? { r: totalR / count, g: totalG / count, b: totalB / count }
+          : null;
+      }
+
+      function colorDist(a, b) {
+        return Math.sqrt(
+          (a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2,
+        );
+      }
+
+      function detectHeldObject(lm) {
+        if (!colorObjects.length) return null;
+        const color = sampleWristColor(lm);
+        if (!color) return null;
+        let best = null,
+          bestDist = COLOR_THRESHOLD;
+        for (const obj of colorObjects) {
+          const d = colorDist(color, obj);
+          if (d < bestDist) {
+            bestDist = d;
+            best = obj;
+          }
+        }
+        return best ? best.name : null;
+      }
+
+      function getDetectedObjectTag(player) {
+        const now = performance.now();
+        if (
+          player.lastDetectedObject !== null &&
+          now - player.lastObjectSampleAt < OBJECT_TAG_INTERVAL_MS
+        ) {
+          return player.lastDetectedObject;
+        }
+        const obj = detectHeldObject(player.lm);
+        player.lastDetectedObject = obj;
+        player.lastObjectSampleAt = now;
+        return obj;
+      }
+
+      const calHintEl = document.getElementById("cal-hint");
+      const calExamplesEl = document.getElementById("cal-examples");
+
+      function showCalHint() {
+        // Build example chips: show sides still needed
+        const examples = [];
+        if (!handAliases.left) examples.push({ label: "左手", obj: "番茄" });
+        if (!handAliases.right) examples.push({ label: "右手", obj: "手機" });
+        if (examples.length === 0) {
+          hideCalHint();
+          return;
+        }
+
+        calExamplesEl.innerHTML = examples
+          .map(
+            (e) =>
+              `<div class="cal-chip">${e.label}<span style="color:#fff">${e.obj}</span></div>`,
+          )
+          .join("");
+        calHintEl.style.display = "flex";
+      }
+
+      function hideCalHint() {
+        calHintEl.style.display = "none";
+      }
+
+      function calPromptText(player) {
+        const needLeft = !handAliases.left;
+        const needRight = !handAliases.right;
+        if (!needLeft && !needRight) return null;
+        const examples = [];
+        if (needLeft) examples.push("左手番茄");
+        if (needRight) examples.push("右手手機");
+        return `🎤 ${player.name}：請說「${examples.join("」 或 「")}」`;
+      }
+
+      function parseObjectUtterance(text) {
+        const normalized = text.replace(/\s+/g, "").trim();
+        const leftIdx = normalized.indexOf("左手");
+        const rightIdx = normalized.indexOf("右手");
+
+        if (leftIdx === -1 && rightIdx === -1) {
+          return { side: null, alias: normalized };
+        }
+
+        const isLeftFirst =
+          leftIdx !== -1 && (rightIdx === -1 || leftIdx <= rightIdx);
+        const side = isLeftFirst ? "left" : "right";
+        const marker = isLeftFirst ? "左手" : "右手";
+        const otherMarker = isLeftFirst ? "右手" : "左手";
+        const markerIdx = isLeftFirst ? leftIdx : rightIdx;
+
+        let aliasRaw = normalized.slice(markerIdx + marker.length);
+        const otherIdx = aliasRaw.indexOf(otherMarker);
+        if (otherIdx >= 0) aliasRaw = aliasRaw.slice(0, otherIdx);
+
+        const alias = aliasRaw
+          .replace(/^[是叫為]/, "")
+          .replace(/[，。,.!！?？；;:：]/g, "")
+          .trim();
+
+        return { side, alias };
+      }
+
+      let calListenTimer = null;
+
+      function listenForObject(player) {
+        if (areHandAliasesReady()) {
+          finishCalibration();
+          return;
+        }
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          finishCalibration();
+          return;
+        }
+
+        const promptText = calPromptText(player);
+        if (!promptText) {
+          finishCalibration();
+          return;
+        }
+        showStatus(promptText);
+        showCalHint();
+        positionMicAt(player);
+        micEl.style.display = "flex";
+
+        // Stop any existing recognition and voiceTrigger before creating new one
+        stopVoiceTrigger();
+        if (calRecognition) {
+          calRecognition.onresult = null;
+          calRecognition.onerror = null;
+          calRecognition.onend = null;
+          try {
+            calRecognition.abort();
+          } catch (e) {
+            // ignore
+          }
+          calRecognition = null;
+        }
+
+        clearTimeout(calListenTimer);
+        calListenTimer = setTimeout(() => doListenForObject(player), 300);
+      }
+
+      function doListenForObject(player) {
+        if (calibratingId !== player.id) return;
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        calGotResult = false;
+        calRecognition = new SR();
+        calRecognition.lang = "zh-TW";
+        calRecognition.maxAlternatives = 1;
+        calRecognition.continuous = true;
+        calRecognition.interimResults = true;
+
+        calRecognition.onresult = (e) => {
+          if (calRecognition !== calRecognition) return;
+          const lastResult = e.results[e.results.length - 1];
+          if (!lastResult.isFinal) return;
+
+          calGotResult = true;
+          const text = lastResult[0].transcript.trim();
+
+          // Stop recognition immediately to prevent multiple triggers
+          if (calRecognition) {
+            calRecognition.onresult = null;
+            calRecognition.onerror = null;
+            calRecognition.onend = null;
+            try {
+              calRecognition.abort();
+            } catch (err) {
+              // ignore
+            }
+          }
+
+          const { side, alias } = parseObjectUtterance(text);
+          if (!side || !alias) {
+            playSound("fail");
+            speak(
+              "請說「左手」或「右手」加道具代名詞，例如左手沒有、右手完成",
+            ).then(() => {
+              listenForObject(player);
+            });
+            return;
+          }
+
+          // Sample color at the relevant wrist
+          const p = players.find((q) => q.id === player.id);
+          const color = p && p.lm ? sampleWristColorSide(p.lm, side) : null;
+
+          if (color) {
+            playSound("success");
+            const idx = colorObjects.findIndex((o) => o.name === alias);
+            if (idx >= 0) colorObjects[idx] = { name: alias, ...color };
+            else colorObjects.push({ name: alias, ...color });
+            handAliases[side] = alias;
+
+            const sideLabel = side === "left" ? "左手" : "右手";
+            const done = areHandAliasesReady();
+            speak(
+              `已記錄${sideLabel}代名詞「${alias}」${done ? "，共用設定完成！" : "，請繼續設定另一隻手"}`,
+            ).then(() => {
+              if (done) {
+                finishCalibration();
+              } else {
+                listenForObject(player);
+              }
+            });
+          } else {
+            playSound("fail");
+            speak("找不到對應手部位置，請舉高手再說一次").then(() => {
+              listenForObject(player);
+            });
+          }
+        };
+
+        calRecognition.onerror = (e) => {
+          if (e.error === "not-allowed" || e.error === "audio-capture") {
+            showStatus("⚠️ 麥克風無法使用，請檢查權限或用手動輸入");
+            nameInput.focus();
+            return;
+          }
+          showStatus(`🎤 ${player.name}：沒聽清楚，請再說一次（持續聆聽中）`);
+          retryCalibrationListening(player, false);
+        };
+        calRecognition.onend = () => {
+          // Chrome fires onend after every result; only treat as skip if no result came
+          if (!calGotResult) retryCalibrationListening(player, true);
+        };
+
+        try {
+          calRecognition.start();
+        } catch (err) {
+          showStatus("⚠️ 語音辨識啟動失敗，請用手動輸入");
+          nameInput.focus();
+        }
+      }
+
+      function shouldRetryCalibrationListening(playerId, gotResult) {
+        return state === S.SETUP && calibratingId === playerId && !gotResult;
+      }
+
+      function retryCalibrationListening(player, fromOnEnd) {
+        if (!shouldRetryCalibrationListening(player.id, calGotResult)) return;
+        const baseDelay = IS_MOBILE ? 120 : CAL_RETRY_DELAY_MS;
+        const retryDelay = fromOnEnd ? baseDelay : 0;
+        setTimeout(() => {
+          if (shouldRetryCalibrationListening(player.id, false)) {
+            listenForObject(player);
+          }
+        }, retryDelay);
+      }
+
+      // Sample wrist color: prefer the side given, fallback to raised hand
+      function sampleWristColorSide(lm, side) {
+        sampleCanvas.width = video.videoWidth || 1280;
+        sampleCanvas.height = video.videoHeight || 720;
+        sampleCtx.drawImage(video, 0, 0);
+
+        const lw = lm[IDX.L_WRIST],
+          ls = lm[IDX.L_SHOULDER];
+        const rw = lm[IDX.R_WRIST],
+          rs = lm[IDX.R_SHOULDER];
+        const lRaised = lw && ls && lw.y < ls.y - RAISE_MARGIN;
+        const rRaised = rw && rs && rw.y < rs.y - RAISE_MARGIN;
+
+        let pt = null;
+        if (side === "left" && lw) pt = lw;
+        else if (side === "right" && rw) pt = rw;
+        else if (lRaised) pt = lw;
+        else if (rRaised) pt = rw;
+        else if (lw) pt = lw;
+        if (!pt) return null;
+
+        const cx = Math.round(pt.x * sampleCanvas.width);
+        const cy = Math.round(pt.y * sampleCanvas.height);
+        const r = 20;
+        const imageData = sampleCtx.getImageData(
+          Math.max(0, cx - r),
+          Math.max(0, cy - r),
+          r * 2,
+          r * 2,
+        );
+        let totalR = 0,
+          totalG = 0,
+          totalB = 0,
+          count = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          totalR += imageData.data[i];
+          totalG += imageData.data[i + 1];
+          totalB += imageData.data[i + 2];
+          count++;
+        }
+        return count
+          ? { r: totalR / count, g: totalG / count, b: totalB / count }
+          : null;
+      }
+
+      function finishCalibration() {
+        calibratingId = null;
+        calibratingPlayer = null;
+        calGotResult = false;
+        clearTimeout(calListenTimer);
+        calListenTimer = null;
+        if (calRecognition) {
+          calRecognition.onresult = null;
+          calRecognition.onerror = null;
+          calRecognition.onend = null;
+          try {
+            calRecognition.abort();
+          } catch (_) {}
+          calRecognition = null;
+        }
+        micEl.style.display = "none";
+        hideCalHint();
+        if (state === S.SETUP) startVoiceTrigger();
+      }
+
+      function areHandAliasesReady() {
+        return Boolean(handAliases.left && handAliases.right);
+      }
+
+      function isSetupReadyToStart() {
+        const named = players.filter((p) => p.name && p.active);
+        if (named.length < 1) return false;
+        return areHandAliasesReady();
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // TTS
+      // ═══════════════════════════════════════════════════════════
+      function speak(text) {
+        return new Promise((resolve) => {
+          speechSynthesis.cancel();
+          const utt = new SpeechSynthesisUtterance(text);
+          utt.lang = "zh-TW";
+          utt.rate = 1.05;
+          utt.volume = audioSettings.ttsVolume;
+
+          const voices = speechSynthesis.getVoices();
+          const zhVoice = voices.find((v) => v.lang.startsWith("zh"));
+          if (zhVoice) utt.voice = zhVoice;
+
+          let done = false;
+          const finish = () => {
+            if (!done) {
+              done = true;
+              resolve();
+            }
+          };
+          utt.onend = finish;
+          utt.onerror = finish;
+          // Safety fallback: estimate ~200ms per character + 800ms buffer
+          setTimeout(finish, text.length * 200 + 800);
+
+          speechSynthesis.speak(utt);
+        });
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // GAME FLOW
+      // ═══════════════════════════════════════════════════════════
+      let initialPlayerCount = 0;
+
+      function startGame() {
+        if (!isSetupReadyToStart()) {
+          showStatus(
+            "尚未完成共用道具代名詞設定：請先輸入一次左手與右手代名詞",
+          );
+          return;
+        }
+        playSound("button");
+        state = S.GAMING;
+        round = 0;
+        requiredState = { left: null, right: null };
+
+        // Deactivate unnamed players so they don't participate in the game
+        for (const p of players) {
+          if (!p.name) p.active = false;
+        }
+        initialPlayerCount = players.filter((p) => p.active).length;
+        finishCalibration();
+        stopVoiceTrigger();
+        stopListening();
+        clearDebounce();
+        btnStart.style.display = "none";
+        btnManualInput.style.display = "none";
+        nameInputPanel.style.display = "none";
+        nameInput.value = "";
+        btnPause.style.display = "";
+        btnReset.style.display = "";
+        btnSettings.style.display = "none";
+        settingsPanel.style.display = "none";
+        roundBadge.textContent = "第 0 回合";
+        roundBadge.style.display = "block";
+        hideStatus();
+        startBGM();
+        nextRound();
+      }
+
+      async function nextRound() {
+        round++;
+        timerTotal = Math.max(
+          audioSettings.minRoundSec,
+          Math.round(MAX_ROUND_SEC * Math.pow(0.8, round - 1) * 10) / 10,
+        );
+
+        // Pick non-repeating command
+        let idx;
+        do {
+          idx = Math.floor(Math.random() * COMMANDS.length);
+        } while (idx === lastCmdIdx && COMMANDS.length > 1);
+        lastCmdIdx = idx;
+        currentCmd = COMMANDS[idx];
+        applyCommand(currentCmd);
+
+        // Generate phrasing for this round
+        const cmdText = generateCommandText(currentCmd);
+
+        // Show command + round badge
+        roundBadge.textContent = `第 ${round} 回合`;
+        cmdHud.textContent = cmdText;
+        cmdHud.style.display = "";
+        timerWrap.style.display = "none";
+
+        await speak(cmdText);
+
+        timerEnd = performance.now() + timerTotal * 1000;
+        timerWrap.style.display = "flex";
+        if (rafTimer) cancelAnimationFrame(rafTimer);
+        countdownTick();
+      }
+
+      function countdownTick() {
+        const remaining = Math.max(0, timerEnd - performance.now());
+        const pct = remaining / (timerTotal * 1000);
+
+        timerNum.textContent = (remaining / 1000).toFixed(1) + "s";
+        timerFill.style.width = (pct * 100).toFixed(1) + "%";
+
+        if (remaining <= 1000 && remaining >= 900) {
+          playSound("countdown");
+        }
+
+        if (remaining <= 0) {
+          evaluateRound();
+          return;
+        }
+        rafTimer = requestAnimationFrame(countdownTick);
+      }
+
+      function evaluateRound() {
+        timerWrap.style.display = "none";
+        cmdHud.style.display = "none";
+
+        const activeBefore = players.filter((p) => p.active);
+        const eliminated = [];
+
+        for (const p of activeBefore) {
+          if (!p.lm || !checkCompliance(p.lm)) {
+            p.active = false;
+            p.eliminatedRound = round;
+            eliminated.push(p.name || "未命名");
+          }
+        }
+
+        const survive = players.filter((p) => p.active);
+
+        // Show result panel only when someone is eliminated
+        state = S.RESULT;
+        if (eliminated.length > 0) {
+          playSound("eliminate");
+          resultTitle.textContent = "❌ 本回合淘汰";
+          resultNames.textContent = eliminated.join("、");
+          resultRemain.textContent = `剩餘 ${survive.length} 人存活`;
+          speak(eliminated.join("、") + " 被淘汰！");
+          resultPanel.style.display = "flex";
+
+          setTimeout(() => {
+            resultPanel.style.display = "none";
+            if (isGameOver(survive)) {
+              showWinner(survive[0] || null);
+            } else {
+              state = S.GAMING;
+              nextRound();
+            }
+          }, RESULT_MS);
+        } else {
+          // Nobody eliminated — go straight to next round
+          if (isGameOver(survive)) {
+            showWinner(survive[0] || null);
+          } else {
+            state = S.GAMING;
+            nextRound();
+          }
+        }
+      }
+
+      function isGameOver(survive) {
+        if (initialPlayerCount <= 1) return survive.length === 0; // solo: can play, ends when eliminated
+        return survive.length <= 1; // multi: ends when 1 remains
+      }
+
+      function showWinner(p) {
+        state = S.WINNER;
+        stopBGM();
+        btnSettings.style.display = "none";
+        btnManualInput.style.display = "none";
+        nameInputPanel.style.display = "none";
+        btnPause.style.display = "none";
+        settingsPanel.style.display = "none";
+        pausePanel.style.display = "none";
+        roundBadge.style.display = "none";
+        winnerPanel.style.display = "flex";
+        winnerRounds.textContent = buildWinnerRoundBoard();
+        if (p) {
+          winnerName.textContent = p.name || "神秘勝利者";
+          speak(`恭喜 ${p.name || "神秘勝利者"} 獲得最終勝利！`);
+        } else {
+          winnerName.textContent = "無人倖存";
+          speak("所有人一起被淘汰！沒有勝利者！");
+        }
+      }
+
+      function buildWinnerRoundBoard() {
+        if (players.length === 0) return "尚無玩家資料";
+        const lines = players.map((p, idx) => {
+          const name = p.name || `玩家${idx + 1}`;
+          if (p.active) return `${name}：存活至第 ${round} 回合（勝利）`;
+          const outRound = Number.isFinite(p.eliminatedRound)
+            ? p.eliminatedRound
+            : "?";
+          return `${name}：第 ${outRound} 回合淘汰`;
+        });
+        return lines.join("\n");
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // NAVIGATION
+      // ═══════════════════════════════════════════════════════════
+      function enterSetup() {
+        playSound("button");
+        idlePanel.style.display = "none";
+        state = S.SETUP;
+        btnStart.style.display = "";
+        btnReset.style.display = "";
+        btnManualInput.style.display = "none";
+        btnSettings.style.display = "block";
+        settingsPanel.style.display = "none";
+        showStatus("請站到鏡頭前，輸入名字或舉手語音報名");
+        speak("請站到鏡頭前，輸入名字完成報名");
+        startVoiceTrigger();
+      }
+
+      function resetAll() {
+        // Cancel ongoing operations
+        if (rafTimer) {
+          cancelAnimationFrame(rafTimer);
+          rafTimer = null;
+        }
+        clearDebounce();
+        finishCalibration();
+        stopVoiceTrigger();
+        stopListening();
+        speechSynthesis.cancel();
+
+        // Reset state
+        state = S.SETUP;
+        players = [];
+        nextId = 0;
+        round = 0;
+        lastCmdIdx = -1;
+        currentCmd = null;
+        requiredState = { left: null, right: null };
+        colorObjects.length = 0;
+        handAliases.left = null;
+        handAliases.right = null;
+        stopBGM();
+
+        // Reset UI
+        idlePanel.style.display = "none";
+        winnerPanel.style.display = "none";
+        resultPanel.style.display = "none";
+        pausePanel.style.display = "none";
+        cmdHud.style.display = "none";
+        timerWrap.style.display = "none";
+        roundBadge.style.display = "none";
+        btnStart.style.display = "";
+        btnStart.disabled = true;
+        btnManualInput.style.display = "none";
+        nameInputPanel.style.display = "none";
+        nameInput.value = "";
+        btnPause.style.display = "none";
+        btnReset.style.display = "";
+        btnSettings.style.display = "block";
+        settingsPanel.style.display = "none";
+
+        playSound("button");
+        showStatus("已重設，請輸入名字或舉手語音報名");
+        startVoiceTrigger();
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // UI HELPERS
+      // ═══════════════════════════════════════════════════════════
+      function showStatus(msg) {
+        statusEl.textContent = msg;
+        statusEl.style.display = "";
+      }
+      function hideStatus() {
+        statusEl.style.display = "none";
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // BGM — Web Audio API procedural beat
+      // ═══════════════════════════════════════════════════════════
+      let bgmCtx = null;
+      let bgmNodes = []; // keeps refs so we can stop them
+      let bgmInterval = null;
+      let bgmMasterGain = null;
+
+      function startBGM() {
+        if (bgmCtx) return;
+        bgmCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const bpm = 128;
+        const beat = 60 / bpm; // seconds per beat
+
+        // Master gain (low so TTS stays audible)
+        const master = bgmCtx.createGain();
+        master.gain.value = audioSettings.bgmVolume;
+        master.connect(bgmCtx.destination);
+        bgmMasterGain = master;
+
+        let step = 0;
+
+        function scheduleBeats() {
+          const now = bgmCtx.currentTime;
+          const pattern = [
+            { type: "kick", vol: 1.0 }, // 1
+            { type: "hat", vol: 0.5 }, // 2
+            { type: "snare", vol: 0.8 }, // 3
+            { type: "hat", vol: 0.5 }, // 4
+            { type: "kick", vol: 0.7 }, // 5
+            { type: "hat", vol: 0.4 }, // 6
+            { type: "snare", vol: 0.8 }, // 7
+            { type: "hat", vol: 0.6 }, // 8
+          ];
+
+          for (let i = 0; i < 8; i++) {
+            const t = now + i * beat * 0.5;
+            const { type, vol } = pattern[i];
+            if (type === "kick") scheduleKick(t, vol, master);
+            if (type === "snare") scheduleSnare(t, vol, master);
+            if (type === "hat") scheduleHat(t, vol, master);
+          }
+        }
+
+        scheduleBeats();
+        // Re-schedule every 4 beats
+        bgmInterval = setInterval(scheduleBeats, beat * 4 * 1000);
+      }
+
+      function scheduleKick(t, vol, dest) {
+        const osc = bgmCtx.createOscillator();
+        const gain = bgmCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.connect(gain);
+        gain.connect(dest);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      }
+
+      function scheduleSnare(t, vol, dest) {
+        const buf = bgmCtx.createBuffer(
+          1,
+          bgmCtx.sampleRate * 0.2,
+          bgmCtx.sampleRate,
+        );
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const src = bgmCtx.createBufferSource();
+        const gain = bgmCtx.createGain();
+        const filter = bgmCtx.createBiquadFilter();
+        filter.type = "highpass";
+        filter.frequency.value = 1000;
+        src.buffer = buf;
+        gain.gain.setValueAtTime(vol * 0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(dest);
+        src.start(t);
+        src.stop(t + 0.2);
+      }
+
+      function scheduleHat(t, vol, dest) {
+        const buf = bgmCtx.createBuffer(
+          1,
+          bgmCtx.sampleRate * 0.05,
+          bgmCtx.sampleRate,
+        );
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const src = bgmCtx.createBufferSource();
+        const gain = bgmCtx.createGain();
+        const filter = bgmCtx.createBiquadFilter();
+        filter.type = "highpass";
+        filter.frequency.value = 8000;
+        src.buffer = buf;
+        gain.gain.setValueAtTime(vol * 0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(dest);
+        src.start(t);
+        src.stop(t + 0.05);
+      }
+
+      function stopBGM() {
+        if (bgmInterval) {
+          clearInterval(bgmInterval);
+          bgmInterval = null;
+        }
+        if (bgmCtx) {
+          bgmCtx.close();
+          bgmCtx = null;
+        }
+        bgmMasterGain = null;
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // BOOT
+      // ═══════════════════════════════════════════════════════════
+      init().catch((err) => {
+        console.error(err);
+        alert("啟動失敗：" + err.message);
+      });
+    </script>
+  </body>
+</html>

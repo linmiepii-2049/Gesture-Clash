@@ -1,0 +1,24 @@
+# Vercel
+.vercel/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build / test outputs
+dist/
+build/
+coverage/
