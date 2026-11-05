@@ -1,14 +1,11 @@
-import assert from 'node:assert/strict';
-
-function shouldRestartVoiceTrigger(state, listeningId, calibratingId) {
-  return state === 1 && listeningId === null && calibratingId === null;
-}
+import assert from "node:assert/strict";
+import { shouldRestartVoiceTrigger, S } from "./js/rules.js";
 
 function runTests() {
-  assert.equal(shouldRestartVoiceTrigger(1, null, null), true);
-  assert.equal(shouldRestartVoiceTrigger(1, 2, null), false);
-  assert.equal(shouldRestartVoiceTrigger(1, null, 5), false);
-  assert.equal(shouldRestartVoiceTrigger(2, null, null), false);
+  assert.equal(shouldRestartVoiceTrigger(S.SETUP, null, null), true);
+  assert.equal(shouldRestartVoiceTrigger(S.SETUP, 2, null), false);
+  assert.equal(shouldRestartVoiceTrigger(S.SETUP, null, 5), false);
+  assert.equal(shouldRestartVoiceTrigger(S.GAMING, null, null), false);
 }
 
 runTests();
